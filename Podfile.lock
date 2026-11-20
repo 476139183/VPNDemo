@@ -1,0 +1,24 @@
+PODS:
+  - Alamofire (5.11.0)
+  - KeychainAccess (4.2.2)
+  - SnapKit (5.7.1)
+
+DEPENDENCIES:
+  - Alamofire (~> 5.11)
+  - KeychainAccess (~> 4.2)
+  - SnapKit (~> 5.7)
+
+SPEC REPOS:
+  trunk:
+    - Alamofire
+    - KeychainAccess
+    - SnapKit
+
+SPEC CHECKSUMS:
+  Alamofire: bd5e7b23a1a750975288482c1831d71e74415f86
+  KeychainAccess: c0c4f7f38f6fc7bbe58f5702e25f7bd2f65abf51
+  SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
+
+PODFILE CHECKSUM: 23873802859efc8507637907b7b6791f037481ca
+
+COCOAPODS: 1.16.2

@@ -1,0 +1,33 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+xcuserdata/
+
+# CocoaPods
+Pods/
+
+# Misc
+.DS_Store
+*.swp
+*~.nib
+timeline.xctimeline
+playground.xcworkspace
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Secrets / local
+*.mobileprovision
+*.p12
+.env
+.env.*
