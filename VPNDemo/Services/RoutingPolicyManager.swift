@@ -83,9 +83,20 @@ final class RoutingPolicyManager {
         }
     }
 
-    /// 将分流配置转成 PacketTunnel / 自定义扩展可用的 IPv4 路由（当前 IKEv2 无法直接注入）。
+    /// 将分流配置转成 PacketTunnel 可用的 IPv4 路由。
     func ipv4Routes(from cidrs: [String]?) -> [NEIPv4Route] {
-        (cidrs ?? []).compactMap { NEIPv4Route.from($0) }
+        (cidrs ?? []).compactMap { NEIPv4Route.fromCIDR($0) }
+    }
+
+    /// 写入 App Group，供 PacketTunnel 扩展读取 excludedRoutes。
+    func persistExcludedRoutesForTunnel(_ cidrs: [String]) {
+        guard let url = TunnelIdentity.sharedContainerURL?
+            .appendingPathComponent(TunnelIdentity.ConfigKey.excludedCIDRsFile) else {
+            return
+        }
+        let capped = Array(cidrs.prefix(TunnelRouteBuilder.maxExcludedRoutes))
+        try? capped.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+        TunnelIdentity.sharedDefaults?.set(capped.count, forKey: "excludedCIDRCount")
     }
 
     private func buildSmartConfig(rules: [RoutingRule]) -> RoutingConfig {

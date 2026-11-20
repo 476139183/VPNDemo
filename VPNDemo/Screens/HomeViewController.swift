@@ -268,8 +268,8 @@ class HomeViewController: UIViewController {
         demoBadge.snp.makeConstraints { make in
             make.leading.equalTo(headerLabel.snp.trailing).offset(8)
             make.centerY.equalTo(headerLabel)
-            make.width.equalTo(32)
             make.height.equalTo(18)
+            make.width.greaterThanOrEqualTo(32)
         }
 
         scanButton.snp.makeConstraints { make in
@@ -421,7 +421,7 @@ class HomeViewController: UIViewController {
     private func syncStatus(_ status: VPNStatus) {
         currentStatus = status
         connectButton.setStatus(status)
-        demoBadge.isHidden = !(VPNManager.shared.isDemoMode && (status == .connected || status == .connecting))
+        updateDemoBadge(for: status)
         updateRoutingSummary()
         serversTableView.reloadData()
 
@@ -429,6 +429,30 @@ class HomeViewController: UIViewController {
             startTimer()
         } else if status == .disconnected || status == .invalid {
             stopTimer()
+        }
+    }
+
+    private func updateDemoBadge(for status: VPNStatus) {
+        let active = status == .connected || status == .connecting
+        guard active else {
+            demoBadge.isHidden = true
+            return
+        }
+        if VPNManager.shared.isDemoMode {
+            demoBadge.text = " App演示 "
+            demoBadge.isHidden = false
+        } else if VPNManager.shared.isTunnelDemo {
+            demoBadge.text = " 隧道演示 "
+            demoBadge.isHidden = false
+        } else {
+            demoBadge.text = " Tunnel "
+            demoBadge.textColor = AppColors.success
+            demoBadge.backgroundColor = AppColors.success.withAlphaComponent(0.15)
+            demoBadge.isHidden = false
+        }
+        if VPNManager.shared.isDemoMode || VPNManager.shared.isTunnelDemo {
+            demoBadge.textColor = AppColors.warning
+            demoBadge.backgroundColor = AppColors.warning.withAlphaComponent(0.15)
         }
     }
 
@@ -632,7 +656,7 @@ extension HomeViewController: ConnectButtonDelegate {
         VPNManager.shared.connect(to: server, mode: currentMode) { [weak self] result in
             DispatchQueue.main.async {
                 self?.updateRoutingSummary()
-                self?.demoBadge.isHidden = !VPNManager.shared.isDemoMode
+                self?.updateDemoBadge(for: VPNManager.shared.status)
                 if case .failure(let error) = result {
                     let alert = UIAlertController(title: "连接失败", message: error.localizedDescription, preferredStyle: .alert)
                     alert.addAction(UIAlertAction(title: "确定", style: .default))
@@ -646,7 +670,7 @@ extension HomeViewController: ConnectButtonDelegate {
         VPNManager.shared.disconnect { [weak self] in
             DispatchQueue.main.async {
                 self?.stopTimer()
-                self?.demoBadge.isHidden = true
+                self?.updateDemoBadge(for: .disconnected)
                 self?.serversTableView.reloadData()
             }
         }

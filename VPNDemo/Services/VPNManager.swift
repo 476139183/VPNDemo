@@ -1,7 +1,6 @@
 import Foundation
 import NetworkExtension
 import UIKit
-import KeychainAccess
 
 enum VPNError: LocalizedError {
     case noServerSelected
@@ -41,7 +40,10 @@ final class VPNManager {
 
     private(set) var currentServer: ServerNode?
     private(set) var currentRouting: RoutingConfig?
+    /// true = App 内 Mock；false = Packet Tunnel 扩展
     private(set) var isDemoMode = true
+    /// 扩展已拉起但节点为示例域名时的「隧道演示」
+    private(set) var isTunnelDemo = false
 
     var currentMode: VPNMode {
         get {
@@ -63,14 +65,16 @@ final class VPNManager {
     private(set) var connectedDate: Date?
 
     private let routingManager = RoutingPolicyManager.shared
+    private var tunnelManager: NETunnelProviderManager?
     private var trafficTimer: Timer?
     private var pendingConnectCompletion: ((Result<Void, Error>) -> Void)?
     private var connectTimeoutWorkItem: DispatchWorkItem?
+    private var statusObserver: NSObjectProtocol?
 
     private init() {
-        observeNEStatus()
+        observeTunnelStatus()
         observeRulesChanges()
-        syncStatusFromSystem()
+        loadTunnelManager()
         routingManager.preloadChinaIPs()
     }
 
@@ -85,15 +89,18 @@ final class VPNManager {
         currentServer = server
         currentMode = mode
         applyRouting(mode: mode)
-
-        let useReal = shouldUseRealVPN(for: server)
-        isDemoMode = !useReal
         updateStatus(.connecting)
 
-        if useReal {
-            connectReal(server: server, mode: mode, completion: completion)
-        } else {
-            connectMock(completion: completion)
+        // 优先 Packet Tunnel；失败则回落 App Mock
+        connectPacketTunnel(server: server, mode: mode) { [weak self] result in
+            guard let self = self else { return }
+            if case .failure = result {
+                self.isDemoMode = true
+                self.isTunnelDemo = false
+                self.connectMock(completion: completion)
+            } else {
+                completion(result)
+            }
         }
     }
 
@@ -102,40 +109,34 @@ final class VPNManager {
         pendingConnectCompletion = nil
         updateStatus(.disconnecting)
 
-        if isDemoMode {
+        if let session = tunnelManager?.connection as? NETunnelProviderSession,
+           session.status != .disconnected && session.status != .invalid {
+            session.stopTunnel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.finishDisconnected()
+                completion?()
+            }
+        } else if isDemoMode {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 self?.finishDisconnected()
                 completion?()
             }
         } else {
-            let manager = NEVPNManager.shared()
-            manager.loadFromPreferences { [weak self] _ in
-                manager.connection.stopVPNTunnel()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    if self?.status != .disconnected {
-                        self?.finishDisconnected()
-                    }
-                    completion?()
-                }
-            }
+            finishDisconnected()
+            completion?()
         }
     }
 
-    /// 已连接时切换模式 / 规则变更后刷新分流配置；真连时会重连。
     func refreshRouting(completion: ((Result<Void, Error>) -> Void)? = nil) {
         applyRouting(mode: currentMode)
         guard status == .connected || status == .connecting, let server = currentServer else {
             completion?(.success(()))
             return
         }
-        if isDemoMode {
-            completion?(.success(()))
-            return
-        }
         disconnect { [weak self] in
-            self?.connect(to: server, mode: self?.currentMode ?? .smart, completion: { result in
+            self?.connect(to: server, mode: self?.currentMode ?? .smart) { result in
                 completion?(result)
-            })
+            }
         }
     }
 
@@ -150,37 +151,169 @@ final class VPNManager {
         let rules = routingManager.loadRules()
         let config = routingManager.buildRoutingConfig(mode: mode, rules: rules)
         currentRouting = config
+        routingManager.persistExcludedRoutesForTunnel(config.excludedRoutes ?? [])
         return config
-    }
-
-    private func shouldUseRealVPN(for server: ServerNode) -> Bool {
-        if UserDefaults.standard.object(forKey: AppConstants.UserDefaultsKeys.useRealVPN) as? Bool == false {
-            return false
-        }
-        if UserDefaults.standard.bool(forKey: AppConstants.UserDefaultsKeys.useRealVPN) {
-            return vpnKeychainSecret() != nil
-        }
-        // 自动：非示例域名且已有共享密钥时走真连
-        guard !server.address.contains("example.com") else { return false }
-        return vpnKeychainSecret() != nil
     }
 }
 
-// MARK: - Mock
+// MARK: - Packet Tunnel
 private extension VPNManager {
-    func connectMock(completion: @escaping (Result<Void, Error>) -> Void) {
-        pendingConnectCompletion = completion
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self, self.status == .connecting else { return }
-            self.connectedDate = Date()
-            self.updateStatus(.connected)
-            self.startTrafficSimulation()
-            self.pendingConnectCompletion?(.success(()))
-            self.pendingConnectCompletion = nil
+
+    func loadTunnelManager() {
+        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, _ in
+            guard let self = self else { return }
+            if let existing = managers?.first(where: {
+                (($0.protocolConfiguration as? NETunnelProviderProtocol)?
+                    .providerBundleIdentifier) == TunnelIdentity.tunnelBundleId
+            }) {
+                self.tunnelManager = existing
+                self.mapSessionStatus(existing.connection.status)
+            } else {
+                let manager = NETunnelProviderManager()
+                let proto = NETunnelProviderProtocol()
+                proto.providerBundleIdentifier = TunnelIdentity.tunnelBundleId
+                proto.providerConfiguration = [:]
+                manager.protocolConfiguration = proto
+                manager.localizedDescription = "VPNDemo"
+                self.tunnelManager = manager
+            }
         }
     }
 
-    func startTrafficSimulation() {
+    func connectPacketTunnel(
+        server: ServerNode,
+        mode: VPNMode,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        pendingConnectCompletion = completion
+        scheduleConnectTimeout()
+
+        let manager = tunnelManager ?? NETunnelProviderManager()
+        tunnelManager = manager
+
+        let isExample = server.address.contains("example.com")
+        isDemoMode = false
+        isTunnelDemo = isExample
+
+        let routing = currentRouting ?? applyRouting(mode: mode)
+        let proto = NETunnelProviderProtocol()
+        proto.providerBundleIdentifier = TunnelIdentity.tunnelBundleId
+        proto.serverAddress = server.address
+        proto.providerConfiguration = [
+            TunnelIdentity.ConfigKey.mode: mode.rawValue,
+            TunnelIdentity.ConfigKey.serverAddress: server.address,
+            TunnelIdentity.ConfigKey.serverPort: server.port,
+            TunnelIdentity.ConfigKey.serverName: server.name,
+            TunnelIdentity.ConfigKey.isDemo: isExample,
+            TunnelIdentity.ConfigKey.mtu: 1400,
+            TunnelIdentity.ConfigKey.tunnelIPv4: "10.7.0.2",
+            TunnelIdentity.ConfigKey.tunnelSubnet: "255.255.255.0",
+            TunnelIdentity.ConfigKey.dnsServers: ["8.8.8.8", "1.1.1.1", "114.114.114.114"],
+            TunnelIdentity.ConfigKey.includedCIDRs: routing.includedRoutes ?? ["0.0.0.0/0"]
+        ]
+
+        manager.protocolConfiguration = proto
+        manager.localizedDescription = "VPNDemo - \(server.name)"
+        manager.isEnabled = true
+        manager.isOnDemandEnabled = false
+
+        manager.saveToPreferences { [weak self] error in
+            guard let self = self else { return }
+            if let error {
+                self.failTunnelConnect(VPNError.configurationFailed(error.localizedDescription))
+                return
+            }
+            manager.loadFromPreferences { loadError in
+                if let loadError {
+                    self.failTunnelConnect(VPNError.configurationFailed(loadError.localizedDescription))
+                    return
+                }
+                do {
+                    guard let session = manager.connection as? NETunnelProviderSession else {
+                        self.failTunnelConnect(VPNError.notSupported)
+                        return
+                    }
+                    try session.startTunnel(options: nil)
+                    // connected 由 NEVPNStatus 回调确认
+                } catch {
+                    self.failTunnelConnect(VPNError.connectionFailed(error.localizedDescription))
+                }
+            }
+        }
+    }
+
+    func failTunnelConnect(_ error: Error) {
+        cancelConnectTimeout()
+        let completion = pendingConnectCompletion
+        pendingConnectCompletion = nil
+        completion?(.failure(error))
+    }
+
+    func observeTunnelStatus() {
+        statusObserver = NotificationCenter.default.addObserver(
+            forName: .NEVPNStatusDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            let connection = notification.object as? NEVPNConnection
+                ?? self.tunnelManager?.connection
+            guard let connection else { return }
+            self.mapSessionStatus(connection.status)
+        }
+    }
+
+    func mapSessionStatus(_ neStatus: NEVPNStatus) {
+        // App Mock 期间忽略系统 VPN 状态
+        if isDemoMode && tunnelManager?.connection.status == .disconnected {
+            return
+        }
+
+        switch neStatus {
+        case .connected:
+            cancelConnectTimeout()
+            if connectedDate == nil { connectedDate = Date() }
+            isDemoMode = false
+            updateStatus(.connected)
+            startTrafficPolling()
+            pendingConnectCompletion?(.success(()))
+            pendingConnectCompletion = nil
+        case .connecting, .reasserting:
+            updateStatus(.connecting)
+        case .disconnecting:
+            updateStatus(.disconnecting)
+        case .disconnected, .invalid:
+            cancelConnectTimeout()
+            if pendingConnectCompletion != nil && !isDemoMode {
+                // startTunnel 后立刻 disconnected → 交给外层走 Mock
+                failTunnelConnect(VPNError.connectionFailed("Packet Tunnel 未能建立"))
+                finishDisconnected()
+            } else if !isDemoMode {
+                finishDisconnected()
+            }
+        @unknown default:
+            break
+        }
+    }
+}
+
+// MARK: - Mock fallback
+private extension VPNManager {
+    func connectMock(completion: @escaping (Result<Void, Error>) -> Void) {
+        isDemoMode = true
+        isTunnelDemo = false
+        pendingConnectCompletion = nil
+        cancelConnectTimeout()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self, self.status == .connecting || self.status == .disconnected else { return }
+            self.connectedDate = Date()
+            self.updateStatus(.connected)
+            self.startMockTraffic()
+            completion(.success(()))
+        }
+    }
+
+    func startMockTraffic() {
         trafficTimer?.invalidate()
         trafficTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self, self.status == .connected else { return }
@@ -189,97 +322,28 @@ private extension VPNManager {
         }
     }
 
-    func stopTrafficSimulation() {
+    func startTrafficPolling() {
+        trafficTimer?.invalidate()
+        trafficTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.status == .connected else { return }
+            if self.isDemoMode {
+                self.currentBytesReceived += Int64.random(in: 1_000...50_000)
+                self.currentBytesSent += Int64.random(in: 500...20_000)
+            } else if let defaults = TunnelIdentity.sharedDefaults {
+                self.currentBytesSent = Int64(defaults.integer(forKey: TunnelIdentity.ConfigKey.bytesSent))
+                self.currentBytesReceived = Int64(defaults.integer(forKey: TunnelIdentity.ConfigKey.bytesReceived))
+            }
+        }
+    }
+
+    func stopTraffic() {
         trafficTimer?.invalidate()
         trafficTimer = nil
     }
 }
 
-// MARK: - Real IKEv2
+// MARK: - Common
 private extension VPNManager {
-    func connectReal(server: ServerNode, mode: VPNMode, completion: @escaping (Result<Void, Error>) -> Void) {
-        pendingConnectCompletion = completion
-        scheduleConnectTimeout()
-
-        let manager = NEVPNManager.shared()
-        manager.loadFromPreferences { [weak self] error in
-            guard let self = self else { return }
-            if let error = error {
-                self.failConnect(VPNError.configurationFailed(error.localizedDescription))
-                return
-            }
-
-            let protocolConfig = NEVPNProtocolIKEv2()
-            protocolConfig.serverAddress = server.address
-            protocolConfig.remoteIdentifier = server.address
-            protocolConfig.localIdentifier = UIDevice.current.name
-            protocolConfig.authenticationMethod = .sharedSecret
-            protocolConfig.sharedSecretReference = self.vpnKeychainSecret()
-            protocolConfig.username = UserManager.shared.currentUser?.id
-            protocolConfig.passwordReference = self.vpnKeychainPassword()
-            protocolConfig.useExtendedAuthentication = true
-            protocolConfig.disconnectOnSleep = false
-            protocolConfig.enablePFS = true
-            protocolConfig.deadPeerDetectionRate = .medium
-
-            protocolConfig.ikeSecurityAssociationParameters.encryptionAlgorithm = .algorithmAES256GCM
-            protocolConfig.ikeSecurityAssociationParameters.integrityAlgorithm = .SHA384
-            protocolConfig.ikeSecurityAssociationParameters.diffieHellmanGroup = .group14
-            protocolConfig.ikeSecurityAssociationParameters.lifetimeMinutes = 1440
-
-            protocolConfig.childSecurityAssociationParameters.encryptionAlgorithm = .algorithmAES256GCM
-            protocolConfig.childSecurityAssociationParameters.integrityAlgorithm = .SHA384
-            protocolConfig.childSecurityAssociationParameters.diffieHellmanGroup = .group14
-            protocolConfig.childSecurityAssociationParameters.lifetimeMinutes = 1440
-
-            manager.protocolConfiguration = protocolConfig
-            manager.isEnabled = true
-            manager.isOnDemandEnabled = false
-            manager.localizedDescription = "VPNDemo - \(server.name)"
-
-            // IKEv2 无法做真正的客户端分流；智能模式配置已写入 currentRouting，供 UI / 后续 PacketTunnel 使用。
-            _ = mode
-
-            manager.saveToPreferences { saveError in
-                if let saveError = saveError {
-                    self.failConnect(VPNError.configurationFailed(saveError.localizedDescription))
-                    return
-                }
-                manager.loadFromPreferences { reloadError in
-                    if let reloadError = reloadError {
-                        self.failConnect(VPNError.configurationFailed(reloadError.localizedDescription))
-                        return
-                    }
-                    do {
-                        try manager.connection.startVPNTunnel()
-                        // 真正 connected 由 NEVPNStatus 回调驱动
-                    } catch {
-                        self.failConnect(VPNError.connectionFailed(error.localizedDescription))
-                    }
-                }
-            }
-        }
-    }
-
-    func vpnKeychainSecret() -> Data? {
-        let keychain = Keychain(service: "com.vpndemo.vpn")
-        return keychain[data: "ikev2_shared_secret"]
-    }
-
-    func vpnKeychainPassword() -> Data? {
-        let keychain = Keychain(service: "com.vpndemo.vpn")
-        return keychain[data: "ikev2_password"]
-    }
-
-    func observeNEStatus() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(neStatusChanged),
-            name: .NEVPNStatusDidChange,
-            object: nil
-        )
-    }
-
     func observeRulesChanges() {
         NotificationCenter.default.addObserver(
             forName: .routingRulesDidChange,
@@ -295,57 +359,15 @@ private extension VPNManager {
         }
     }
 
-    func syncStatusFromSystem() {
-        let manager = NEVPNManager.shared()
-        manager.loadFromPreferences { [weak self] _ in
-            self?.mapNEStatus(manager.connection.status)
-        }
-    }
-
-    @objc func neStatusChanged() {
-        let neStatus = NEVPNManager.shared().connection.status
-        DispatchQueue.main.async { [weak self] in
-            self?.mapNEStatus(neStatus)
-        }
-    }
-
-    func mapNEStatus(_ neStatus: NEVPNStatus) {
-        // Demo 模式不跟系统 VPN 状态
-        guard !isDemoMode else { return }
-
-        switch neStatus {
-        case .connected:
-            cancelConnectTimeout()
-            if connectedDate == nil { connectedDate = Date() }
-            updateStatus(.connected)
-            startTrafficSimulation()
-            pendingConnectCompletion?(.success(()))
-            pendingConnectCompletion = nil
-        case .connecting, .reasserting:
-            updateStatus(.connecting)
-        case .disconnecting:
-            updateStatus(.disconnecting)
-        case .disconnected, .invalid:
-            cancelConnectTimeout()
-            if pendingConnectCompletion != nil {
-                failConnect(VPNError.connectionFailed("连接未建立或已断开"))
-            } else {
-                finishDisconnected()
-            }
-        @unknown default:
-            break
-        }
-    }
-
     func scheduleConnectTimeout() {
         cancelConnectTimeout()
         let work = DispatchWorkItem { [weak self] in
             guard let self = self, self.status == .connecting else { return }
-            self.failConnect(VPNError.connectionFailed("连接超时"))
-            NEVPNManager.shared().connection.stopVPNTunnel()
+            self.failTunnelConnect(VPNError.connectionFailed("连接超时"))
+            (self.tunnelManager?.connection as? NETunnelProviderSession)?.stopTunnel()
         }
         connectTimeoutWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: work)
     }
 
     func cancelConnectTimeout() {
@@ -353,16 +375,8 @@ private extension VPNManager {
         connectTimeoutWorkItem = nil
     }
 
-    func failConnect(_ error: Error) {
-        cancelConnectTimeout()
-        let completion = pendingConnectCompletion
-        pendingConnectCompletion = nil
-        finishDisconnected()
-        completion?(.failure(error))
-    }
-
     func finishDisconnected() {
-        stopTrafficSimulation()
+        stopTraffic()
         currentBytesSent = 0
         currentBytesReceived = 0
         connectedDate = nil

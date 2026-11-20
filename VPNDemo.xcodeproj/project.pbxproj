@@ -8,13 +8,42 @@
 
 /* Begin PBXBuildFile section */
 		089B03FE8CC2107C713C3550 /* Pods_VPNDemo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15CE0367CFC01C87A65F7B1C /* Pods_VPNDemo.framework */; };
+		A10000000000000000000001 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* NetworkExtension.framework */; };
+		A10000000000000000000003 /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000012 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* NetworkExtension.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10000000000000000000005 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20F9C2B52F503B9300024F55 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000006;
+			remoteInfo = PacketTunnel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A10000000000000000000007 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A10000000000000000000003 /* PacketTunnel.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		15B6D2BB625F37F51E3FEBE7 /* Pods-VPNDemo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VPNDemo.debug.xcconfig"; path = "Target Support Files/Pods-VPNDemo/Pods-VPNDemo.debug.xcconfig"; sourceTree = "<group>"; };
 		15CE0367CFC01C87A65F7B1C /* Pods_VPNDemo.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_VPNDemo.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		20F9C2BD2F503B9300024F55 /* VPNDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VPNDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		30EDC8CA75C6B00CC483328F /* Pods-VPNDemo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VPNDemo.release.xcconfig"; path = "Target Support Files/Pods-VPNDemo/Pods-VPNDemo.release.xcconfig"; sourceTree = "<group>"; };
+		A10000000000000000000002 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		A10000000000000000000004 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -24,6 +53,13 @@
 				Info.plist,
 			);
 			target = 20F9C2BC2F503B9300024F55 /* VPNDemo */;
+		};
+		A10000000000000000000008 /* Exceptions for "PacketTunnel" folder in "PacketTunnel" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A10000000000000000000006 /* PacketTunnel */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -36,6 +72,21 @@
 			path = VPNDemo;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000009 /* PacketTunnel */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A10000000000000000000008 /* Exceptions for "PacketTunnel" folder in "PacketTunnel" target */,
+			);
+			path = PacketTunnel;
+			sourceTree = "<group>";
+		};
+		A1000000000000000000000A /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +95,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				089B03FE8CC2107C713C3550 /* Pods_VPNDemo.framework in Frameworks */,
+				A10000000000000000000001 /* NetworkExtension.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000000000000000000000B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000012 /* NetworkExtension.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -54,6 +114,8 @@
 			isa = PBXGroup;
 			children = (
 				20F9C2BF2F503B9300024F55 /* VPNDemo */,
+				A10000000000000000000009 /* PacketTunnel */,
+				A1000000000000000000000A /* Shared */,
 				20F9C2BE2F503B9300024F55 /* Products */,
 				815CB0C029546478C7861BDB /* Pods */,
 				AA7088E8BF0F68CE47833559 /* Frameworks */,
@@ -64,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				20F9C2BD2F503B9300024F55 /* VPNDemo.app */,
+				A10000000000000000000004 /* PacketTunnel.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,6 +143,7 @@
 		AA7088E8BF0F68CE47833559 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A10000000000000000000002 /* NetworkExtension.framework */,
 				15CE0367CFC01C87A65F7B1C /* Pods_VPNDemo.framework */,
 			);
 			name = Frameworks;
@@ -97,18 +161,42 @@
 				20F9C2BA2F503B9300024F55 /* Frameworks */,
 				20F9C2BB2F503B9300024F55 /* Resources */,
 				E5F835DB1834672A009D6A19 /* [CP] Embed Pods Frameworks */,
+				A10000000000000000000007 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1000000000000000000000C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				20F9C2BF2F503B9300024F55 /* VPNDemo */,
+				A1000000000000000000000A /* Shared */,
+			);
+			name = VPNDemo;
+			productName = VPNDemo;
+			productReference = 20F9C2BD2F503B9300024F55 /* VPNDemo.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000006 /* PacketTunnel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000D /* Build configuration list for PBXNativeTarget "PacketTunnel" */;
+			buildPhases = (
+				A1000000000000000000000E /* Sources */,
+				A1000000000000000000000B /* Frameworks */,
+				A1000000000000000000000F /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				20F9C2BF2F503B9300024F55 /* VPNDemo */,
+				A10000000000000000000009 /* PacketTunnel */,
+				A1000000000000000000000A /* Shared */,
 			);
-			name = VPNDemo;
-			productName = VPNDemo;
-			productReference = 20F9C2BD2F503B9300024F55 /* VPNDemo.app */;
-			productType = "com.apple.product-type.application";
+			name = PacketTunnel;
+			productName = PacketTunnel;
+			productReference = A10000000000000000000004 /* PacketTunnel.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -121,6 +209,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					20F9C2BC2F503B9300024F55 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					A10000000000000000000006 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -140,12 +231,20 @@
 			projectRoot = "";
 			targets = (
 				20F9C2BC2F503B9300024F55 /* VPNDemo */,
+				A10000000000000000000006 /* PacketTunnel */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		20F9C2BB2F503B9300024F55 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1000000000000000000000F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -185,13 +284,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-VPNDemo/Pods-VPNDemo-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-VPNDemo/Pods-VPNDemo-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -208,7 +303,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1000000000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1000000000000000000000C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000006 /* PacketTunnel */;
+			targetProxy = A10000000000000000000005 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		20F9C2D12F503B9400024F55 /* Debug */ = {
@@ -217,6 +327,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VPNDemo/VPNDemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -250,6 +361,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VPNDemo/VPNDemo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -396,6 +508,54 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.languageclass.PacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A10000000000000000000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.languageclass.PacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -413,6 +573,15 @@
 			buildConfigurations = (
 				20F9C2D12F503B9400024F55 /* Debug */,
 				20F9C2D22F503B9400024F55 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000000000000000000D /* Build configuration list for PBXNativeTarget "PacketTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000010 /* Debug */,
+				A10000000000000000000011 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
