@@ -2,9 +2,9 @@ import Foundation
 
 enum TunnelIdentity {
     /// 与主 App PRODUCT_BUNDLE_IDENTIFIER 保持一致
-    static let appBundleId = "com.languageclass"
-    static let tunnelBundleId = "com.languageclass.PacketTunnel"
-    static let appGroupId = "group.com.languageclass.vpndemo"
+    static let appBundleId = "com.yutianduan.vpndemo"
+    static let tunnelBundleId = "com.yutianduan.vpndemo.PacketTunnel"
+    static let appGroupId = "group.com.yutianduan.vpndemo"
 
     enum ConfigKey {
         static let mode = "mode"

@@ -60,11 +60,18 @@ class RulesViewController: UIViewController {
         return tableView
     }()
 
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         setupTableView()
         loadRules()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
     }
 
     private func setupUI() {

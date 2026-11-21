@@ -3,6 +3,33 @@ import Foundation
 enum ServerNodeStore {
 
     private static let customNodesKey = AppConstants.UserDefaultsKeys.customServerNodes
+    private static let subscriptionURLKey = AppConstants.UserDefaultsKeys.subscriptionURL
+    private static let configNameKey = AppConstants.UserDefaultsKeys.subscriptionConfigName
+
+    static var configName: String {
+        get {
+            let name = UserDefaults.standard.string(forKey: configNameKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let name, !name.isEmpty { return name }
+            return "默认配置"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: configNameKey)
+        }
+    }
+
+    static var subscriptionURL: String? {
+        get { UserDefaults.standard.string(forKey: subscriptionURLKey) }
+        set { UserDefaults.standard.set(newValue, forKey: subscriptionURLKey) }
+    }
+
+    static func rememberSubscription(urlString: String) {
+        subscriptionURL = urlString
+        if let url = URL(string: urlString), let host = url.host, !host.isEmpty {
+            configName = host
+        } else {
+            configName = "订阅配置"
+        }
+    }
 
     static func loadAll() -> [ServerNode] {
         let custom = loadCustom()
@@ -11,15 +38,22 @@ enum ServerNodeStore {
             merged.append(node)
         }
 
-        if let selectedId = UserDefaults.standard.string(forKey: AppConstants.UserDefaultsKeys.selectedServerId) {
+        let selectedId = UserDefaults.standard.string(forKey: AppConstants.UserDefaultsKeys.selectedServerId)
+        if let selectedId {
             for i in merged.indices {
                 merged[i].isSelected = merged[i].id == selectedId
             }
-            if !merged.contains(where: { $0.isSelected }), !merged.isEmpty {
-                merged[0].isSelected = true
+        }
+        if !merged.contains(where: { $0.isSelected }), let first = merged.first {
+            for i in merged.indices {
+                merged[i].isSelected = merged[i].id == first.id
             }
         }
         return merged
+    }
+
+    static func setSelectedServerId(_ id: String) {
+        UserDefaults.standard.set(id, forKey: AppConstants.UserDefaultsKeys.selectedServerId)
     }
 
     static func loadCustom() -> [ServerNode] {

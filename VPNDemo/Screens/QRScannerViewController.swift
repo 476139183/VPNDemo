@@ -48,6 +48,8 @@ final class QRScannerViewController: UIViewController {
         return button
     }()
 
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
@@ -210,27 +212,48 @@ final class QRScannerViewController: UIViewController {
         hasHandledResult = true
         session.stopRunning()
 
-        do {
-            let nodes = try ServerNodeQRParser.parse(string)
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-            dismiss(animated: true) { [weak self] in
-                guard let self = self else { return }
-                self.delegate?.qrScanner(self, didScan: nodes)
-            }
-        } catch {
-            hasHandledResult = false
-            let alert = UIAlertController(
-                title: "解析失败",
-                message: error.localizedDescription,
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "继续扫码", style: .default) { [weak self] _ in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    self?.session.startRunning()
+        let loading = UIAlertController(title: nil, message: "正在解析节点…", preferredStyle: .alert)
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        indicator.startAnimating()
+        loading.view.addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.leadingAnchor.constraint(equalTo: loading.view.leadingAnchor, constant: 20),
+            indicator.centerYAnchor.constraint(equalTo: loading.view.centerYAnchor)
+        ])
+        present(loading, animated: true)
+
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSubscription = trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://")
+
+        ServerNodeQRParser.parseAsync(string) { [weak self] result in
+            guard let self = self else { return }
+            loading.dismiss(animated: true) {
+                switch result {
+                case .success(let nodes):
+                    if isSubscription {
+                        ServerNodeStore.rememberSubscription(urlString: trimmed)
+                    }
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.success)
+                    self.dismiss(animated: true) {
+                        self.delegate?.qrScanner(self, didScan: nodes)
+                    }
+                case .failure(let error):
+                    self.hasHandledResult = false
+                    let alert = UIAlertController(
+                        title: "解析失败",
+                        message: error.localizedDescription,
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "继续扫码", style: .default) { _ in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            self.session.startRunning()
+                        }
+                    })
+                    self.present(alert, animated: true)
                 }
-            })
-            present(alert, animated: true)
+            }
         }
     }
 }

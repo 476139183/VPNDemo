@@ -7,11 +7,28 @@
 
 **中文** | [English](#english)
 
-iOS VPN 客户端 Demo：基于 `Network Extension` / `NEPacketTunnelProvider` 的智能分流、扫码添加节点、多连接模式演示。
+iOS VPN 客户端 Demo：基于 `Network Extension` / `NEPacketTunnelProvider`。选节点即连——出国节点智能分流，回国节点走回国路由；支持扫码加节点。
 
 适合学习：**Packet Tunnel、CHNRoutes 式分流、NETunnelProviderManager、App Group 配置下发**。
 
-> An iOS VPN client demo with Packet Tunnel, smart split tunneling, QR node import, and multi-mode connections. Ideal for learning Network Extension.
+> An iOS VPN client demo with Packet Tunnel. Pick a node to connect — outbound uses smart split, inbound uses return-to-China routing. QR import supported.
+
+---
+
+## ⚠️ 账号要求 Account Requirement
+
+**免费 Personal Team 无法使用 Network Extension。** 真机系统 VPN 需要付费 Apple Developer Program（Individual 即可，$99/年）。
+
+Free Personal Team cannot use Network Extension. A paid Apple Developer Program membership (Individual is fine) is required for real device VPN.
+
+### 升级付费后 After You Upgrade
+
+1. Xcode → **VPNDemo** 与 **PacketTunnel** → Signing：同一 Team，勾选 Automatically manage signing  
+2. Capabilities（两个 Target 都要）：
+   - **Network Extensions** → Packet Tunnel  
+   - **App Groups** → `group.com.yutianduan.vpndemo`  
+3. 真机 Run；首次连接系统会弹 VPN 权限  
+4. 状态栏出现 VPN 图标即表示隧道已拉起  
 
 ---
 
@@ -20,11 +37,9 @@ iOS VPN 客户端 Demo：基于 `Network Extension` / `NEPacketTunnelProvider` �
 | 能力 Feature | 说明 Description |
 |------|------|
 | **Packet Tunnel** | 独立扩展，在系统层设置路由 / Dedicated extension that applies routes at system level |
-| **智能分流 Smart Routing** | 国内 IP / 直连规则走本地，其余进隧道 / China IPs & direct rules stay local; others go through the tunnel |
-| **连接模式 Modes** | 智能分流 · 全球出国 · 全球回国 / Smart · Global Outbound · Global Inbound |
-| **扫码加节点 QR Import** | JSON 二维码导入节点并本地持久化 / Import nodes via JSON QR codes with local persistence |
+| **按节点路由 By Node** | 出国→智能分流；回国→回国路由 / Outbound→smart split; Inbound→return routing |
+| **扫码加节点 QR Import** | 订阅链接 / URI / JSON / Subscription URL, URI, or JSON |
 | **规则中心 Rules** | 域名 / 后缀 / IP CIDR，支持开关与排序 / Domain, suffix, IP CIDR with toggle & reorder |
-| **优雅降级 Fallback** | 扩展无法拉起时回落 App 演示模式 / Falls back to in-app demo mode if the extension fails |
 
 ---
 
@@ -71,19 +86,17 @@ open VPNDemo.xcworkspace
    Select the **VPNDemo** scheme (embeds PacketTunnel automatically)
 2. Signing：主 App 与 `PacketTunnel` 使用同一 Team  
    Use the same signing Team for both targets
-3. Capabilities：
-   - **Network Extensions** → Packet Tunnel
-   - **App Groups** → `group.com.languageclass.vpndemo`
-4. 真机运行；模拟器可验证 UI，VPN 权限以真机为准  
-   Run on a real device; Simulator is fine for UI only
+3. Capabilities：见上文「升级付费后」  
+4. 真机运行；模拟器可验证 UI，VPN 以真机为准  
+   Run on a real device; Simulator is UI-only for VPN
 
 ### Bundle Identifiers
 
 | Target | Bundle ID |
 |--------|-----------|
-| VPNDemo | `com.languageclass` |
-| PacketTunnel | `com.languageclass.PacketTunnel` |
-| App Group | `group.com.languageclass.vpndemo` |
+| VPNDemo | `com.yutianduan.vpndemo` |
+| PacketTunnel | `com.yutianduan.vpndemo.PacketTunnel` |
+| App Group | `group.com.yutianduan.vpndemo` |
 
 ---
 
@@ -109,16 +122,15 @@ open VPNDemo.xcworkspace
 
 ---
 
-## 🔀 分流模式 Routing Modes
+## 🔀 路由如何决定 How Routing Is Chosen
 
-| 模式 Mode | 行为 Behavior |
+| 节点类型 Node | 行为 Behavior |
 |------|------|
-| **智能分流 Smart** | 默认路由进隧道；国内 IP + 直连规则 → `excludedRoutes` / Default route into tunnel; China IPs & direct rules excluded |
-| **全球出国 Global Outbound** | 全流量经海外节点 / All traffic via overseas node |
-| **全球回国 Global Inbound** | 全流量经国内节点 / All traffic via mainland node |
+| **出国 Outbound** | 智能分流：默认进隧道，国内 IP / 直连规则 → `excludedRoutes` |
+| **回国 Inbound** | 全流量经回国节点 |
 
-> 演示节点（`*.example.com`）不会接管默认路由，避免无真实转发时断网。  
-> Demo nodes (`*.example.com`) do not take over the default route, so the device stays online without a real forwarder.
+> 示例域名节点（`*.example.com`）不接管默认路由，避免无真实转发时断网。  
+> Demo nodes (`*.example.com`) skip the default route so the device stays online.
 
 ---
 

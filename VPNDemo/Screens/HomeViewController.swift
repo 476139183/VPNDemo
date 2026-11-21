@@ -4,22 +4,20 @@ import SnapKit
 class HomeViewController: UIViewController {
 
     private var allServers: [ServerNode] = ServerNodeStore.loadAll()
-    private var displayedServers: [ServerNode] = []
     private var currentStatus: VPNStatus = .disconnected
-    private var currentMode: VPNMode = VPNManager.shared.currentMode {
-        didSet {
-            updateModeDescription()
-            filterServersByMode()
-        }
-    }
 
     private let scrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.backgroundColor = AppColors.background
         return scrollView
     }()
 
-    private let contentView = UIView()
+    private let contentView: UIView = {
+        let view = UIView()
+        view.backgroundColor = AppColors.background
+        return view
+    }()
 
     private let headerLabel: UILabel = {
         let label = UILabel()
@@ -51,23 +49,21 @@ class HomeViewController: UIViewController {
         return button
     }()
 
-    private let modeSelector = ModeSelectorView()
-
-    private let modeDescCard: UIView = {
+    private let nodeHintCard: UIView = {
         let view = UIView()
         view.backgroundColor = AppColors.cardBackground
         view.layer.cornerRadius = AppConstants.smallCornerRadius
         return view
     }()
 
-    private let modeDescIcon: UIImageView = {
+    private let nodeHintIcon: UIImageView = {
         let iv = UIImageView()
         iv.contentMode = .scaleAspectFit
         iv.tintColor = AppColors.textSecondary
         return iv
     }()
 
-    private let modeDescLabel: UILabel = {
+    private let nodeHintLabel: UILabel = {
         let label = UILabel()
         label.font = AppFonts.regular(size: 12)
         label.textColor = AppColors.textSecondary
@@ -76,6 +72,24 @@ class HomeViewController: UIViewController {
     }()
 
     private let connectButton = ConnectButton()
+
+    private let demoTipCard: UIView = {
+        let view = UIView()
+        view.backgroundColor = AppColors.warning.withAlphaComponent(0.12)
+        view.layer.cornerRadius = AppConstants.smallCornerRadius
+        view.layer.borderWidth = 1
+        view.layer.borderColor = AppColors.warning.withAlphaComponent(0.35).cgColor
+        return view
+    }()
+
+    private let demoTipLabel: UILabel = {
+        let label = UILabel()
+        label.font = AppFonts.regular(size: 12)
+        label.textColor = AppColors.warning
+        label.numberOfLines = 0
+        label.text = "代码已按真 PacketTunnel 写好。免费 Personal Team 无法签名扩展；升级付费开发者后，在 Xcode 为 App/PacketTunnel 勾选 Network Extension + App Groups 即可真机出系统 VPN。"
+        return label
+    }()
 
     private let routingSummaryLabel: UILabel = {
         let label = UILabel()
@@ -90,20 +104,31 @@ class HomeViewController: UIViewController {
         let view = UIView()
         view.backgroundColor = AppColors.cardBackground
         view.layer.cornerRadius = AppConstants.cornerRadius
+        view.isUserInteractionEnabled = true
         return view
     }()
 
-    private let currentServerTitle: UILabel = {
+    private let configNameLabel: UILabel = {
         let label = UILabel()
-        label.text = "当前节点"
         label.font = AppFonts.regular(size: 12)
         label.textColor = AppColors.textSecondary
+        label.text = "默认配置"
         return label
+    }()
+
+    private let refreshConfigButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
+        button.setTitle(" 刷新", for: .normal)
+        button.titleLabel?.font = AppFonts.medium(size: 12)
+        button.tintColor = AppColors.primary
+        button.setTitleColor(AppColors.primary, for: .normal)
+        return button
     }()
 
     private let currentServerName: UILabel = {
         let label = UILabel()
-        label.font = AppFonts.semibold(size: 16)
+        label.font = AppFonts.semibold(size: 17)
         label.textColor = AppColors.textPrimary
         return label
     }()
@@ -117,144 +142,147 @@ class HomeViewController: UIViewController {
         return label
     }()
 
-    private let changeServerButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("更换", for: .normal)
-        button.titleLabel?.font = AppFonts.medium(size: 14)
-        button.setTitleColor(AppColors.primary, for: .normal)
-        return button
+    private let chevronImageView: UIImageView = {
+        let iv = UIImageView(image: UIImage(systemName: "chevron.right"))
+        iv.tintColor = AppColors.textSecondary
+        iv.contentMode = .scaleAspectFit
+        return iv
     }()
 
-    private let serversTitleLabel: UILabel = {
+    private let selectNodeHint: UILabel = {
         let label = UILabel()
         label.text = "选择节点"
-        label.font = AppFonts.semibold(size: 18)
-        label.textColor = AppColors.textPrimary
+        label.font = AppFonts.medium(size: 12)
+        label.textColor = AppColors.primary
         return label
     }()
 
-    private let addByScanButton: UIButton = {
-        let button = UIButton(type: .system)
-        button.setTitle("＋ 扫码添加", for: .normal)
-        button.titleLabel?.font = AppFonts.medium(size: 14)
-        button.setTitleColor(AppColors.primary, for: .normal)
-        return button
-    }()
-
-    private let emptyServersLabel: UILabel = {
-        let label = UILabel()
-        label.text = "当前模式暂无可用节点，请扫码添加或切换模式"
-        label.font = AppFonts.regular(size: 13)
-        label.textColor = AppColors.textSecondary
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.isHidden = true
-        return label
-    }()
-
-    private let serversTableView: UITableView = {
-        let tableView = UITableView()
-        tableView.backgroundColor = .clear
-        tableView.separatorStyle = .none
-        tableView.isScrollEnabled = false
-        tableView.register(ServerCell.self, forCellReuseIdentifier: ServerCell.identifier)
-        return tableView
-    }()
-
-    private let statusCard: UIView = {
+    private let statsDivider: UIView = {
         let view = UIView()
-        view.backgroundColor = AppColors.cardBackground
-        view.layer.cornerRadius = AppConstants.cornerRadius
+        view.backgroundColor = AppColors.border
         return view
-    }()
-
-    private let downloadIcon: UIImageView = {
-        let imageView = UIImageView()
-        imageView.image = UIImage(systemName: "arrow.down.circle.fill")
-        imageView.tintColor = AppColors.success
-        return imageView
     }()
 
     private let downloadLabel: UILabel = {
         let label = UILabel()
         label.text = "↓ 0 B"
-        label.font = AppFonts.medium(size: 14)
-        label.textColor = AppColors.textSecondary
+        label.font = AppFonts.medium(size: 13)
+        label.textColor = AppColors.success
+        label.textAlignment = .center
         return label
-    }()
-
-    private let uploadIcon: UIImageView = {
-        let imageView = UIImageView()
-        imageView.image = UIImage(systemName: "arrow.up.circle.fill")
-        imageView.tintColor = AppColors.primary
-        return imageView
     }()
 
     private let uploadLabel: UILabel = {
         let label = UILabel()
         label.text = "↑ 0 B"
-        label.font = AppFonts.medium(size: 14)
+        label.font = AppFonts.medium(size: 13)
+        label.textColor = AppColors.primary
+        label.textAlignment = .center
+        return label
+    }()
+
+    private let totalTrafficLabel: UILabel = {
+        let label = UILabel()
+        label.text = "合计 0 B"
+        label.font = AppFonts.medium(size: 13)
         label.textColor = AppColors.textSecondary
+        label.textAlignment = .center
         return label
     }()
 
     private let durationLabel: UILabel = {
         let label = UILabel()
-        label.text = "00:00:00"
-        label.font = AppFonts.bold(size: 20)
-        label.textColor = AppColors.textPrimary
+        label.text = "时长 00:00:00"
+        label.font = AppFonts.regular(size: 12)
+        label.textColor = AppColors.textSecondary
+        label.textAlignment = .center
+        return label
+    }()
+
+    private let downloadCaption: UILabel = {
+        let label = UILabel()
+        label.text = "下行"
+        label.font = AppFonts.regular(size: 10)
+        label.textColor = AppColors.textSecondary
+        label.textAlignment = .center
+        return label
+    }()
+
+    private let uploadCaption: UILabel = {
+        let label = UILabel()
+        label.text = "上行"
+        label.font = AppFonts.regular(size: 10)
+        label.textColor = AppColors.textSecondary
+        label.textAlignment = .center
+        return label
+    }()
+
+    private let totalCaption: UILabel = {
+        let label = UILabel()
+        label.text = "总流量"
+        label.font = AppFonts.regular(size: 10)
+        label.textColor = AppColors.textSecondary
         label.textAlignment = .center
         return label
     }()
 
     private var timer: Timer?
+    private var isRefreshingConfig = false
+
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.backgroundColor = AppColors.background
         setupUI()
-        setupTableView()
         setupVPNManager()
-        modeSelector.setMode(currentMode)
-        currentMode = VPNManager.shared.currentMode
+        updateSelectedServer()
         updateRoutingSummary()
         syncStatus(VPNManager.shared.status)
     }
 
-    private func setupUI() {
-        view.backgroundColor = AppColors.background
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
+        allServers = ServerNodeStore.loadAll()
+        ensureSelectedServer()
+        updateTrafficLabels()
+    }
 
+    private func setupUI() {
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
 
         contentView.addSubview(headerLabel)
         contentView.addSubview(demoBadge)
         contentView.addSubview(scanButton)
-        contentView.addSubview(modeSelector)
-        contentView.addSubview(modeDescCard)
-        modeDescCard.addSubview(modeDescIcon)
-        modeDescCard.addSubview(modeDescLabel)
         contentView.addSubview(connectButton)
+        contentView.addSubview(demoTipCard)
+        demoTipCard.addSubview(demoTipLabel)
         contentView.addSubview(routingSummaryLabel)
         contentView.addSubview(currentServerCard)
-        currentServerCard.addSubview(currentServerTitle)
+        contentView.addSubview(nodeHintCard)
+        nodeHintCard.addSubview(nodeHintIcon)
+        nodeHintCard.addSubview(nodeHintLabel)
+
+        currentServerCard.addSubview(configNameLabel)
+        currentServerCard.addSubview(refreshConfigButton)
         currentServerCard.addSubview(currentServerName)
         currentServerCard.addSubview(currentServerType)
-        currentServerCard.addSubview(changeServerButton)
-        contentView.addSubview(serversTitleLabel)
-        contentView.addSubview(addByScanButton)
-        contentView.addSubview(emptyServersLabel)
-        contentView.addSubview(serversTableView)
-        contentView.addSubview(statusCard)
-        statusCard.addSubview(downloadIcon)
-        statusCard.addSubview(downloadLabel)
-        statusCard.addSubview(uploadIcon)
-        statusCard.addSubview(uploadLabel)
-        statusCard.addSubview(durationLabel)
+        currentServerCard.addSubview(selectNodeHint)
+        currentServerCard.addSubview(chevronImageView)
+        currentServerCard.addSubview(statsDivider)
+        currentServerCard.addSubview(downloadCaption)
+        currentServerCard.addSubview(downloadLabel)
+        currentServerCard.addSubview(uploadCaption)
+        currentServerCard.addSubview(uploadLabel)
+        currentServerCard.addSubview(totalCaption)
+        currentServerCard.addSubview(totalTrafficLabel)
+        currentServerCard.addSubview(durationLabel)
 
         scrollView.snp.makeConstraints { make in
             make.edges.equalTo(view.safeAreaLayoutGuide)
         }
-
         contentView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
             make.width.equalToSuperview()
@@ -264,150 +292,124 @@ class HomeViewController: UIViewController {
             make.top.equalToSuperview().offset(16)
             make.leading.equalToSuperview().offset(20)
         }
-
         demoBadge.snp.makeConstraints { make in
             make.leading.equalTo(headerLabel.snp.trailing).offset(8)
             make.centerY.equalTo(headerLabel)
             make.height.equalTo(18)
             make.width.greaterThanOrEqualTo(32)
         }
-
         scanButton.snp.makeConstraints { make in
             make.centerY.equalTo(headerLabel)
             make.trailing.equalToSuperview().offset(-20)
             make.width.height.equalTo(28)
         }
 
-        modeSelector.snp.makeConstraints { make in
-            make.top.equalTo(headerLabel.snp.bottom).offset(16)
-            make.leading.trailing.equalToSuperview().inset(16)
-            make.height.equalTo(110)
-        }
-        modeSelector.delegate = self
-
-        modeDescCard.snp.makeConstraints { make in
-            make.top.equalTo(modeSelector.snp.bottom).offset(8)
-            make.leading.trailing.equalToSuperview().inset(16)
-            make.height.greaterThanOrEqualTo(36)
-        }
-
-        modeDescIcon.snp.makeConstraints { make in
-            make.leading.equalToSuperview().offset(10)
-            make.top.equalToSuperview().offset(9)
-            make.width.height.equalTo(18)
-        }
-
-        modeDescLabel.snp.makeConstraints { make in
-            make.leading.equalTo(modeDescIcon.snp.trailing).offset(6)
-            make.trailing.equalToSuperview().offset(-10)
-            make.top.equalToSuperview().offset(8)
-            make.bottom.equalToSuperview().offset(-8)
-        }
-
         connectButton.snp.makeConstraints { make in
-            make.top.equalTo(modeDescCard.snp.bottom).offset(20)
+            make.top.equalTo(headerLabel.snp.bottom).offset(28)
             make.centerX.equalToSuperview()
             make.width.height.equalTo(180)
         }
 
+        demoTipCard.snp.makeConstraints { make in
+            make.top.equalTo(connectButton.snp.bottom).offset(12)
+            make.leading.trailing.equalToSuperview().inset(16)
+        }
+        demoTipLabel.snp.makeConstraints { make in
+            make.edges.equalToSuperview().inset(10)
+        }
+
         routingSummaryLabel.snp.makeConstraints { make in
-            make.top.equalTo(connectButton.snp.bottom).offset(8)
+            make.top.equalTo(demoTipCard.snp.bottom).offset(8)
             make.leading.trailing.equalToSuperview().inset(24)
         }
 
         currentServerCard.snp.makeConstraints { make in
             make.top.equalTo(routingSummaryLabel.snp.bottom).offset(16)
             make.leading.trailing.equalToSuperview().inset(16)
-            make.height.equalTo(60)
         }
 
-        currentServerTitle.snp.makeConstraints { make in
+        configNameLabel.snp.makeConstraints { make in
+            make.top.equalToSuperview().offset(14)
             make.leading.equalToSuperview().offset(16)
-            make.top.equalToSuperview().offset(10)
+            make.trailing.lessThanOrEqualTo(refreshConfigButton.snp.leading).offset(-8)
         }
-
+        refreshConfigButton.snp.makeConstraints { make in
+            make.centerY.equalTo(configNameLabel)
+            make.trailing.equalToSuperview().offset(-12)
+        }
         currentServerName.snp.makeConstraints { make in
+            make.top.equalTo(configNameLabel.snp.bottom).offset(10)
             make.leading.equalToSuperview().offset(16)
-            make.bottom.equalToSuperview().offset(-10)
-            make.trailing.lessThanOrEqualTo(changeServerButton.snp.leading).offset(-8)
+            make.trailing.lessThanOrEqualTo(selectNodeHint.snp.leading).offset(-8)
         }
-
         currentServerType.snp.makeConstraints { make in
             make.leading.equalTo(currentServerName.snp.trailing).offset(8)
             make.centerY.equalTo(currentServerName)
             make.height.equalTo(18)
             make.width.equalTo(52)
         }
-
-        changeServerButton.snp.makeConstraints { make in
-            make.trailing.equalToSuperview().offset(-16)
-            make.centerY.equalToSuperview()
+        selectNodeHint.snp.makeConstraints { make in
+            make.centerY.equalTo(currentServerName)
+            make.trailing.equalTo(chevronImageView.snp.leading).offset(-2)
         }
-
-        serversTitleLabel.snp.makeConstraints { make in
-            make.top.equalTo(currentServerCard.snp.bottom).offset(24)
-            make.leading.equalToSuperview().offset(20)
+        chevronImageView.snp.makeConstraints { make in
+            make.trailing.equalToSuperview().offset(-14)
+            make.centerY.equalTo(currentServerName)
+            make.width.height.equalTo(14)
         }
-
-        addByScanButton.snp.makeConstraints { make in
-            make.centerY.equalTo(serversTitleLabel)
-            make.trailing.equalToSuperview().offset(-20)
-        }
-
-        emptyServersLabel.snp.makeConstraints { make in
-            make.top.equalTo(serversTitleLabel.snp.bottom).offset(16)
-            make.leading.trailing.equalToSuperview().inset(32)
-        }
-
-        serversTableView.snp.makeConstraints { make in
-            make.top.equalTo(serversTitleLabel.snp.bottom).offset(12)
-            make.leading.trailing.equalToSuperview()
-            make.height.equalTo(140)
-        }
-
-        statusCard.snp.makeConstraints { make in
-            make.top.equalTo(serversTableView.snp.bottom).offset(24)
+        statsDivider.snp.makeConstraints { make in
+            make.top.equalTo(currentServerName.snp.bottom).offset(14)
             make.leading.trailing.equalToSuperview().inset(16)
-            make.height.equalTo(80)
-            make.bottom.equalToSuperview().offset(-20)
+            make.height.equalTo(1.0 / UIScreen.main.scale)
         }
 
-        downloadIcon.snp.makeConstraints { make in
-            make.leading.equalToSuperview().offset(20)
-            make.top.equalToSuperview().offset(16)
-            make.width.height.equalTo(20)
+        let statsStack = UIStackView(arrangedSubviews: [
+            makeStatColumn(caption: downloadCaption, value: downloadLabel),
+            makeStatColumn(caption: uploadCaption, value: uploadLabel),
+            makeStatColumn(caption: totalCaption, value: totalTrafficLabel)
+        ])
+        statsStack.axis = .horizontal
+        statsStack.distribution = .fillEqually
+        currentServerCard.addSubview(statsStack)
+        statsStack.snp.makeConstraints { make in
+            make.top.equalTo(statsDivider.snp.bottom).offset(12)
+            make.leading.trailing.equalToSuperview().inset(8)
         }
-
-        downloadLabel.snp.makeConstraints { make in
-            make.leading.equalTo(downloadIcon.snp.trailing).offset(8)
-            make.centerY.equalTo(downloadIcon)
-        }
-
-        uploadIcon.snp.makeConstraints { make in
-            make.leading.equalToSuperview().offset(100)
-            make.top.equalToSuperview().offset(16)
-            make.width.height.equalTo(20)
-        }
-
-        uploadLabel.snp.makeConstraints { make in
-            make.leading.equalTo(uploadIcon.snp.trailing).offset(8)
-            make.centerY.equalTo(uploadIcon)
-        }
-
         durationLabel.snp.makeConstraints { make in
-            make.centerX.equalToSuperview()
-            make.bottom.equalToSuperview().offset(-16)
+            make.top.equalTo(statsStack.snp.bottom).offset(10)
+            make.leading.trailing.equalToSuperview().inset(16)
+            make.bottom.equalToSuperview().offset(-14)
+        }
+
+        nodeHintCard.snp.makeConstraints { make in
+            make.top.equalTo(currentServerCard.snp.bottom).offset(12)
+            make.leading.trailing.equalToSuperview().inset(16)
+            make.bottom.equalToSuperview().offset(-24)
+        }
+        nodeHintIcon.snp.makeConstraints { make in
+            make.leading.equalToSuperview().offset(10)
+            make.top.equalToSuperview().offset(9)
+            make.width.height.equalTo(18)
+        }
+        nodeHintLabel.snp.makeConstraints { make in
+            make.leading.equalTo(nodeHintIcon.snp.trailing).offset(6)
+            make.trailing.equalToSuperview().offset(-10)
+            make.top.equalToSuperview().offset(8)
+            make.bottom.equalToSuperview().offset(-8)
         }
 
         connectButton.delegate = self
-        changeServerButton.addTarget(self, action: #selector(changeServerTapped), for: .touchUpInside)
         scanButton.addTarget(self, action: #selector(scanTapped), for: .touchUpInside)
-        addByScanButton.addTarget(self, action: #selector(scanTapped), for: .touchUpInside)
+        refreshConfigButton.addTarget(self, action: #selector(refreshConfigTapped), for: .touchUpInside)
+        currentServerCard.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(openServerList)))
     }
 
-    private func setupTableView() {
-        serversTableView.delegate = self
-        serversTableView.dataSource = self
+    private func makeStatColumn(caption: UILabel, value: UILabel) -> UIStackView {
+        let stack = UIStackView(arrangedSubviews: [value, caption])
+        stack.axis = .vertical
+        stack.spacing = 2
+        stack.alignment = .center
+        return stack
     }
 
     private func setupVPNManager() {
@@ -423,13 +425,12 @@ class HomeViewController: UIViewController {
         connectButton.setStatus(status)
         updateDemoBadge(for: status)
         updateRoutingSummary()
-        serversTableView.reloadData()
-
         if status == .connected {
             startTimer()
         } else if status == .disconnected || status == .invalid {
             stopTimer()
         }
+        updateTrafficLabels()
     }
 
     private func updateDemoBadge(for status: VPNStatus) {
@@ -440,90 +441,100 @@ class HomeViewController: UIViewController {
         }
         if VPNManager.shared.isDemoMode {
             demoBadge.text = " App演示 "
-            demoBadge.isHidden = false
         } else if VPNManager.shared.isTunnelDemo {
             demoBadge.text = " 隧道演示 "
-            demoBadge.isHidden = false
         } else {
             demoBadge.text = " Tunnel "
             demoBadge.textColor = AppColors.success
             demoBadge.backgroundColor = AppColors.success.withAlphaComponent(0.15)
-            demoBadge.isHidden = false
         }
         if VPNManager.shared.isDemoMode || VPNManager.shared.isTunnelDemo {
             demoBadge.textColor = AppColors.warning
             demoBadge.backgroundColor = AppColors.warning.withAlphaComponent(0.15)
         }
+        demoBadge.isHidden = false
     }
 
-    private func updateModeDescription() {
-        let descriptions: [VPNMode: (icon: String, text: String)] = [
-            .smart: ("arrow.triangle.branch", "国内流量直连，国外流量及匹配规则的域名走 VPN 隧道"),
-            .globalOutbound: ("globe", "所有流量经海外节点转发，适合从国内访问国际网络"),
-            .globalInbound: ("house", "所有流量经国内节点转发，适合从国外访问国内网络")
-        ]
-        if let desc = descriptions[currentMode] {
-            modeDescIcon.image = UIImage(systemName: desc.icon)
-            modeDescLabel.text = desc.text
+    private func updateNodeHint(for server: ServerNode?) {
+        guard let server else {
+            nodeHintIcon.image = UIImage(systemName: "info.circle")
+            nodeHintLabel.text = "请选择节点。出国 / 回国节点会自动采用对应路由策略。"
+            return
         }
+        switch server.serverType {
+        case .outbound:
+            nodeHintIcon.image = UIImage(systemName: "globe")
+        case .inbound:
+            nodeHintIcon.image = UIImage(systemName: "house")
+        }
+        nodeHintLabel.text = server.serverType.routingHint
     }
 
     private func updateRoutingSummary() {
+        if VPNManager.shared.isDemoMode && currentStatus == .connected {
+            routingSummaryLabel.text = "演示连接中：未创建系统 VPN，状态栏不会出现 VPN 图标"
+            return
+        }
         if let config = VPNManager.shared.currentRouting {
             routingSummaryLabel.text = config.summaryText
-        } else {
-            let config = RoutingPolicyManager.shared.buildRoutingConfig(
-                mode: currentMode,
-                rules: RoutingPolicyManager.shared.loadRules()
-            )
-            routingSummaryLabel.text = config.summaryText
+            return
         }
+        guard let selected = selectedServer() else {
+            routingSummaryLabel.text = "选择节点后显示路由策略"
+            return
+        }
+        let mode = VPNMode.inferred(from: selected.serverType)
+        let config = RoutingPolicyManager.shared.buildRoutingConfig(
+            mode: mode,
+            rules: RoutingPolicyManager.shared.loadRules()
+        )
+        routingSummaryLabel.text = config.summaryText
     }
 
-    private func filterServersByMode() {
-        switch currentMode {
-        case .smart:
-            displayedServers = allServers
-        case .globalOutbound:
-            displayedServers = allServers.filter { $0.serverType == .outbound }
-        case .globalInbound:
-            displayedServers = allServers.filter { $0.serverType == .inbound }
-        }
+    private func selectedServer() -> ServerNode? {
+        allServers.first(where: { $0.isSelected }) ?? allServers.first
+    }
 
-        let height = max(displayedServers.count * 72, displayedServers.isEmpty ? 48 : 0)
-        serversTableView.snp.updateConstraints { make in
-            make.height.equalTo(height)
+    @discardableResult
+    private func ensureSelectedServer() -> ServerNode? {
+        guard !allServers.isEmpty else {
+            updateSelectedServer()
+            return nil
         }
-        emptyServersLabel.isHidden = !displayedServers.isEmpty
-        serversTableView.isHidden = displayedServers.isEmpty
-
-        if !displayedServers.isEmpty, !displayedServers.contains(where: { $0.isSelected }) {
-            let firstId = displayedServers[0].id
-            allServers.indices.forEach { allServers[$0].isSelected = allServers[$0].id == firstId }
-            UserDefaults.standard.set(firstId, forKey: AppConstants.UserDefaultsKeys.selectedServerId)
+        if !allServers.contains(where: { $0.isSelected }) {
+            allServers[0].isSelected = true
+            ServerNodeStore.setSelectedServerId(allServers[0].id)
         }
         updateSelectedServer()
+        return selectedServer()
     }
 
     private func updateSelectedServer() {
-        guard let selected = allServers.first(where: { $0.isSelected }) ?? allServers.first else {
+        configNameLabel.text = ServerNodeStore.configName
+        guard let selected = selectedServer() else {
             currentServerName.text = "暂无节点"
+            currentServerType.isHidden = true
+            selectNodeHint.text = "选择节点"
+            updateNodeHint(for: nil)
             return
         }
+        currentServerType.isHidden = false
         currentServerName.text = selected.displayName
         currentServerType.text = selected.serverType.displayName
         currentServerType.textColor = selected.serverType == .outbound ? AppColors.primary : AppColors.warning
         currentServerType.backgroundColor = (selected.serverType == .outbound ? AppColors.primary : AppColors.warning).withAlphaComponent(0.15)
-
-        for i in allServers.indices {
-            allServers[i].isSelected = allServers[i].id == selected.id
-        }
-        serversTableView.reloadData()
+        selectNodeHint.text = "更换节点"
+        updateNodeHint(for: selected)
+        updateRoutingSummary()
     }
 
-    @objc private func changeServerTapped() {
-        let target = serversTitleLabel.frame.origin.y - 12
-        scrollView.setContentOffset(CGPoint(x: 0, y: max(target, 0)), animated: true)
+    @objc private func openServerList() {
+        let list = ServerListViewController(
+            servers: allServers,
+            isVPNConnected: currentStatus == .connected
+        )
+        list.delegate = self
+        navigationController?.pushViewController(list, animated: true)
     }
 
     @objc private func scanTapped() {
@@ -533,27 +544,90 @@ class HomeViewController: UIViewController {
         present(scanner, animated: true)
     }
 
-    private func applyScannedNodes(_ nodes: [ServerNode]) {
+    @objc private func refreshConfigTapped() {
+        guard !isRefreshingConfig else { return }
+        if let url = ServerNodeStore.subscriptionURL, !url.isEmpty {
+            isRefreshingConfig = true
+            refreshConfigButton.isEnabled = false
+            ServerNodeQRParser.parseAsync(url) { [weak self] result in
+                guard let self else { return }
+                self.isRefreshingConfig = false
+                self.refreshConfigButton.isEnabled = true
+                switch result {
+                case .success(let nodes):
+                    ServerNodeStore.rememberSubscription(urlString: url)
+                    self.applyScannedNodes(nodes, showAlert: false)
+                    let alert = UIAlertController(title: "刷新成功", message: "已更新 \(nodes.count) 个节点", preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "确定", style: .default))
+                    self.present(alert, animated: true)
+                case .failure(let error):
+                    let alert = UIAlertController(title: "刷新失败", message: error.localizedDescription, preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "确定", style: .default))
+                    self.present(alert, animated: true)
+                }
+            }
+            return
+        }
+        allServers = ServerNodeStore.loadAll()
+        ensureSelectedServer()
+        let alert = UIAlertController(title: "已刷新", message: "当前为本地节点列表。扫码导入订阅后可一键拉取最新配置。", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "确定", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func applyScannedNodes(_ nodes: [ServerNode], showAlert: Bool = true) {
         guard let first = nodes.first else { return }
         for node in nodes {
             allServers = ServerNodeStore.addCustom(node)
         }
         selectServer(id: first.id, reconnectIfNeeded: currentStatus == .connected)
 
-        let names = nodes.map(\.name).joined(separator: "、")
-        let alert = UIAlertController(title: "已添加节点", message: names, preferredStyle: .alert)
+        guard showAlert else { return }
+        let message: String
+        if nodes.count == 1 {
+            message = nodes[0].name
+        } else if nodes.count <= 5 {
+            message = "共 \(nodes.count) 个：\n" + nodes.map(\.name).joined(separator: "\n")
+        } else {
+            let preview = nodes.prefix(5).map(\.name).joined(separator: "\n")
+            message = "共导入 \(nodes.count) 个节点\n\(preview)\n…"
+        }
+        let alert = UIAlertController(title: "已添加节点", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "确定", style: .default))
         present(alert, animated: true)
     }
 
     private func selectServer(id: String, reconnectIfNeeded: Bool) {
+        let previous = allServers.first(where: { $0.isSelected })
         for i in allServers.indices {
             allServers[i].isSelected = allServers[i].id == id
         }
-        UserDefaults.standard.set(id, forKey: AppConstants.UserDefaultsKeys.selectedServerId)
-        filterServersByMode()
+        ServerNodeStore.setSelectedServerId(id)
+        updateSelectedServer()
 
-        if reconnectIfNeeded, let server = allServers.first(where: { $0.id == id }) {
+        guard reconnectIfNeeded, let server = allServers.first(where: { $0.id == id }) else { return }
+        let typeChanged = previous?.serverType != server.serverType
+        let idChanged = previous?.id != server.id
+        guard idChanged else { return }
+
+        if typeChanged {
+            let alert = UIAlertController(
+                title: "切换节点类型",
+                message: "将按「\(server.serverType.displayName)」重连。\n\(server.serverType.routingHint)",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "取消", style: .cancel) { [weak self] _ in
+                if let previous {
+                    self?.selectServer(id: previous.id, reconnectIfNeeded: false)
+                }
+            })
+            alert.addAction(UIAlertAction(title: "重连", style: .default) { [weak self] _ in
+                VPNManager.shared.disconnect {
+                    self?.connectVPN(to: server)
+                }
+            })
+            present(alert, animated: true)
+        } else {
             VPNManager.shared.disconnect { [weak self] in
                 self?.connectVPN(to: server)
             }
@@ -561,7 +635,22 @@ class HomeViewController: UIViewController {
     }
 }
 
-// MARK: - QRScannerViewControllerDelegate
+extension HomeViewController: ServerListViewControllerDelegate {
+    func serverList(_ list: ServerListViewController, didSelect serverId: String, shouldReconnect: Bool) {
+        allServers = ServerNodeStore.loadAll()
+        selectServer(id: serverId, reconnectIfNeeded: shouldReconnect)
+    }
+
+    func serverListDidRequestScan(_ list: ServerListViewController) {
+        scanTapped()
+    }
+
+    func serverList(_ list: ServerListViewController, didImport nodes: [ServerNode]) {
+        applyScannedNodes(nodes)
+        list.reload(servers: allServers)
+    }
+}
+
 extension HomeViewController: QRScannerViewControllerDelegate {
     func qrScanner(_ scanner: QRScannerViewController, didScan nodes: [ServerNode]) {
         applyScannedNodes(nodes)
@@ -570,57 +659,7 @@ extension HomeViewController: QRScannerViewControllerDelegate {
     func qrScannerDidCancel(_ scanner: QRScannerViewController) {}
 }
 
-// MARK: - UITableView
-extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
-
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        displayedServers.count
-    }
-
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let cell = tableView.dequeueReusableCell(withIdentifier: ServerCell.identifier, for: indexPath) as? ServerCell else {
-            return UITableViewCell()
-        }
-        let server = displayedServers[indexPath.row]
-        let merged = allServers.first { $0.id == server.id } ?? server
-        cell.configure(with: merged, isVPNConnected: currentStatus == .connected && merged.isSelected)
-        return cell
-    }
-
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let selected = displayedServers[indexPath.row]
-        let wasConnected = currentStatus == .connected
-        let previousId = allServers.first(where: { $0.isSelected })?.id
-        selectServer(id: selected.id, reconnectIfNeeded: wasConnected && previousId != selected.id)
-    }
-
-    func tableView(
-        _ tableView: UITableView,
-        trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
-    ) -> UISwipeActionsConfiguration? {
-        let server = displayedServers[indexPath.row]
-        guard ServerNodeStore.isCustom(id: server.id) else { return nil }
-
-        let delete = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
-            guard let self = self else {
-                completion(false)
-                return
-            }
-            if server.isSelected && (self.currentStatus == .connected || self.currentStatus == .connecting) {
-                VPNManager.shared.disconnect()
-            }
-            self.allServers = ServerNodeStore.removeCustom(id: server.id)
-            self.filterServersByMode()
-            completion(true)
-        }
-        delete.backgroundColor = AppColors.error
-        return UISwipeActionsConfiguration(actions: [delete])
-    }
-}
-
-// MARK: - ConnectButtonDelegate
 extension HomeViewController: ConnectButtonDelegate {
-
     func connectButtonTapped() {
         if currentStatus == .connected {
             disconnectVPN()
@@ -646,14 +685,14 @@ extension HomeViewController: ConnectButtonDelegate {
     }
 
     private func connectVPN(to server: ServerNode? = nil) {
-        guard let server = server ?? allServers.first(where: { $0.isSelected }) else {
+        guard let server = server ?? selectedServer() else {
             let alert = UIAlertController(title: "无法连接", message: "请先选择一个节点", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "确定", style: .default))
             present(alert, animated: true)
             return
         }
 
-        VPNManager.shared.connect(to: server, mode: currentMode) { [weak self] result in
+        VPNManager.shared.connect(to: server) { [weak self] result in
             DispatchQueue.main.async {
                 self?.updateRoutingSummary()
                 self?.updateDemoBadge(for: VPNManager.shared.status)
@@ -671,76 +710,44 @@ extension HomeViewController: ConnectButtonDelegate {
             DispatchQueue.main.async {
                 self?.stopTimer()
                 self?.updateDemoBadge(for: .disconnected)
-                self?.serversTableView.reloadData()
             }
         }
     }
 
     private func startTimer() {
         timer?.invalidate()
-        updateDuration()
+        updateTrafficLabels()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateDuration()
+            self?.updateTrafficLabels()
         }
     }
 
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
-        durationLabel.text = "00:00:00"
+        durationLabel.text = "时长 00:00:00"
         downloadLabel.text = "↓ 0 B"
         uploadLabel.text = "↑ 0 B"
+        totalTrafficLabel.text = "0 B"
     }
 
-    private func updateDuration() {
-        let start = VPNManager.shared.connectedDate
-        guard let start else { return }
-        let total = Int(Date().timeIntervalSince(start))
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let seconds = total % 60
-        durationLabel.text = String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-
+    private func updateTrafficLabels() {
         let sent = VPNManager.shared.currentBytesSent
         let received = VPNManager.shared.currentBytesReceived
-        downloadLabel.text = "↓ \(ByteCountFormatter.string(fromByteCount: received, countStyle: .binary))"
-        uploadLabel.text = "↑ \(ByteCountFormatter.string(fromByteCount: sent, countStyle: .binary))"
-    }
-}
+        downloadLabel.text = "↓ \(received.formattedBytes)"
+        uploadLabel.text = "↑ \(sent.formattedBytes)"
+        totalTrafficLabel.text = (sent + received).formattedBytes
 
-// MARK: - ModeSelectorDelegate
-extension HomeViewController: ModeSelectorDelegate {
-    func modeDidChange(_ mode: VPNMode) {
-        let previous = currentMode
-        currentMode = mode
-        VPNManager.shared.currentMode = mode
-        updateRoutingSummary()
-
-        guard currentStatus == .connected, previous != mode else { return }
-
-        let alert = UIAlertController(
-            title: "切换模式",
-            message: "已连接状态下切换模式将重新应用分流并重连，是否继续？",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "取消", style: .cancel) { [weak self] _ in
-            self?.currentMode = previous
-            self?.modeSelector.setMode(previous)
-            VPNManager.shared.currentMode = previous
-            self?.updateRoutingSummary()
-        })
-        alert.addAction(UIAlertAction(title: "重连", style: .default) { [weak self] _ in
-            VPNManager.shared.refreshRouting { [weak self] result in
-                DispatchQueue.main.async {
-                    self?.updateRoutingSummary()
-                    if case .failure(let error) = result {
-                        let fail = UIAlertController(title: "重连失败", message: error.localizedDescription, preferredStyle: .alert)
-                        fail.addAction(UIAlertAction(title: "确定", style: .default))
-                        self?.present(fail, animated: true)
-                    }
-                }
-            }
-        })
-        present(alert, animated: true)
+        if let start = VPNManager.shared.connectedDate, currentStatus == .connected {
+            let totalSec = Int(Date().timeIntervalSince(start))
+            durationLabel.text = String(
+                format: "时长 %02d:%02d:%02d",
+                totalSec / 3600,
+                (totalSec % 3600) / 60,
+                totalSec % 60
+            )
+        } else if currentStatus != .connected {
+            durationLabel.text = "时长 00:00:00"
+        }
     }
 }

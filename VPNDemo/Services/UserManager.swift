@@ -156,17 +156,38 @@ final class UserManager {
     }
     
     func startTrial(completion: @escaping (Result<User, AuthError>) -> Void) {
-        guard var user = currentUser else {
-            completion(.failure(.userNotFound))
+        // 「先体验一下」：无账号时直接创建游客体验用户，不再报「用户不存在」
+        if var user = currentUser {
+            user.isTrial = true
+            user.isLoggedIn = true
+            user.dataQuota = max(user.dataQuota, 500 * 1024 * 1024)
+            user.trialExpiryDate = Date().addingTimeInterval(7 * 24 * 60 * 60)
+            currentUser = user
+            userDefaults.set(true, forKey: isLoggedInKey)
+            DispatchQueue.main.async {
+                completion(.success(user))
+            }
             return
         }
-        
-        user.isTrial = true
-        user.dataQuota = 500 * 1024 * 1024
-        user.trialExpiryDate = Date().addingTimeInterval(7 * 24 * 60 * 60)
-        currentUser = user
-        
-        completion(.success(user))
+
+        let trialUser = User(
+            id: "trial-\(UUID().uuidString.prefix(8))",
+            username: "体验用户",
+            email: nil,
+            avatarURL: nil,
+            subscription: nil,
+            isLoggedIn: true,
+            phone: nil,
+            isTrial: true,
+            dataQuota: 500 * 1024 * 1024,
+            usedData: 0,
+            trialExpiryDate: Date().addingTimeInterval(7 * 24 * 60 * 60)
+        )
+        currentUser = trialUser
+        userDefaults.set(true, forKey: isLoggedInKey)
+        DispatchQueue.main.async {
+            completion(.success(trialUser))
+        }
     }
     
     func logout() {

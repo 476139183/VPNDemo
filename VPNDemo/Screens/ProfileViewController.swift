@@ -3,9 +3,12 @@ import SnapKit
 
 class ProfileViewController: UIViewController {
 
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
     private let scrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.showsVerticalScrollIndicator = false
+        scrollView.backgroundColor = AppColors.background
         return scrollView
     }()
 
@@ -119,6 +122,7 @@ class ProfileViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         updateUserInfo()
     }
 

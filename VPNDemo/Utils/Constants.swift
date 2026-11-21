@@ -47,6 +47,8 @@ enum AppConstants {
         static let savedRules = "savedRules"
         /// 显式开关；未设置时自动判断（非 example 域名 + Keychain 有密钥）
         static let useRealVPN = "useRealVPN"
+        static let subscriptionURL = "subscriptionURL"
+        static let subscriptionConfigName = "subscriptionConfigName"
     }
 
     enum KeychainKeys {

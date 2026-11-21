@@ -9,6 +9,7 @@ enum VPNError: LocalizedError {
     case connectionFailed(String)
     case notSupported
     case alreadyConnecting
+    case needsPaidDeveloperAccount
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ enum VPNError: LocalizedError {
         case .connectionFailed(let msg): return "连接失败: \(msg)"
         case .notSupported: return "当前设备不支持"
         case .alreadyConnecting: return "正在连接中，请稍候"
+        case .needsPaidDeveloperAccount:
+            return "无法创建系统 VPN：需要付费 Apple Developer（Individual/$99），并为 App 与 PacketTunnel 开启 Network Extension。免费 Personal Team 不支持。"
         }
     }
 }
@@ -80,27 +83,24 @@ final class VPNManager {
 
     // MARK: - Public
 
-    func connect(to server: ServerNode, mode: VPNMode, completion: @escaping (Result<Void, Error>) -> Void) {
+    func connect(to server: ServerNode, mode: VPNMode? = nil, completion: @escaping (Result<Void, Error>) -> Void) {
         guard status != .connecting else {
             completion(.failure(VPNError.alreadyConnecting))
             return
         }
 
+        let resolvedMode = mode ?? VPNMode.inferred(from: server.serverType)
         currentServer = server
-        currentMode = mode
-        applyRouting(mode: mode)
+        currentMode = resolvedMode
+        applyRouting(mode: resolvedMode)
         updateStatus(.connecting)
 
-        // 优先 Packet Tunnel；失败则回落 App Mock
-        connectPacketTunnel(server: server, mode: mode) { [weak self] result in
-            guard let self = self else { return }
+        // 只走系统 Packet Tunnel，失败直接报错（不再静默 Mock）
+        connectPacketTunnel(server: server, mode: resolvedMode) { result in
             if case .failure = result {
-                self.isDemoMode = true
-                self.isTunnelDemo = false
-                self.connectMock(completion: completion)
-            } else {
-                completion(result)
+                self.finishDisconnected()
             }
+            completion(result)
         }
     }
 
@@ -220,12 +220,12 @@ private extension VPNManager {
         manager.saveToPreferences { [weak self] error in
             guard let self = self else { return }
             if let error {
-                self.failTunnelConnect(VPNError.configurationFailed(error.localizedDescription))
+                self.failTunnelConnect(self.mapTunnelSetupError(error))
                 return
             }
             manager.loadFromPreferences { loadError in
                 if let loadError {
-                    self.failTunnelConnect(VPNError.configurationFailed(loadError.localizedDescription))
+                    self.failTunnelConnect(self.mapTunnelSetupError(loadError))
                     return
                 }
                 do {
@@ -236,10 +236,26 @@ private extension VPNManager {
                     try session.startTunnel(options: nil)
                     // connected 由 NEVPNStatus 回调确认
                 } catch {
-                    self.failTunnelConnect(VPNError.connectionFailed(error.localizedDescription))
+                    self.failTunnelConnect(self.mapTunnelSetupError(error))
                 }
             }
         }
+    }
+
+    /// 把常见签名 / 权限错误映射成可读提示（免费队最常见）。
+    func mapTunnelSetupError(_ error: Error) -> Error {
+        let ns = error as NSError
+        let text = (ns.localizedDescription + " " + (ns.localizedFailureReason ?? "")).lowercased()
+        let entitlementHints = [
+            "permission", "entitlement", "missing", "not entitled",
+            "configurationinvalid", "plugin", "extension", "neconfiguration"
+        ]
+        if entitlementHints.contains(where: { text.contains($0) })
+            || ns.domain == "NEConfigurationErrorDomain"
+            || ns.domain.contains("NEVPN") {
+            return VPNError.needsPaidDeveloperAccount
+        }
+        return VPNError.configurationFailed(error.localizedDescription)
     }
 
     func failTunnelConnect(_ error: Error) {
